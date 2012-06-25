@@ -20,6 +20,39 @@
     	</cfscript>
     </cffunction>
 
+    <cffunction name="s3ListObjectsChunked" returntype="any" output="false">
+    	<cfargument name="bucket" type="string" required="true"/>
+    	<cfargument name="prefix" type="string" default="#$null()#"/>
+    	<cfargument name="delimiter" type="string" default="#$null()#"/>
+    	<cfargument name="maxListingLength" type="numeric" default="1000"/>
+    	<cfargument name="priorLastKey" type="string" default="#$null()#"/>
+    	<cfargument name="completeListing" type="boolean" default="false"/>
+    	<cfargument name="return" type="string" default="objects"/>
+    	<cfscript>
+    		var loc = {};
+    		loc.chunk = $getRestS3Service().listObjectsChunked(
+    										arguments.bucket,
+    										arguments.prefix,
+    										arguments.delimiter,
+    										arguments.maxListingLength,
+    										arguments.priorLastKey,
+    										arguments.completeListing
+    									);
+    		if(arguments.return == 'prefixes')
+    			return loc.chunk.getCommonPrefixes();
+
+    		return loc.chunk.getObjects();
+    	</cfscript>
+    </cffunction>
+
+    <cffunction name="s3GetObjectHeads" returntype="any" output="false">
+    	<cfargument name="bucket" type="string" required="true"/>
+    	<cfargument name="objects" type="any" required="true"/>
+    	<cfscript>
+    		return $getThreadedService().getObjectsHeads(arguments.bucket,arguments.objects);
+    	</cfscript>
+    </cffunction>
+
     <cffunction name="$getThreadedService" returntype="any" output="false">
     	<cfargument name="reload" type="boolean" default="false"/>
     	<cfscript>
