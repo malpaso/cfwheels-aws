@@ -6,7 +6,7 @@
             //Clear out the application scope cache
             lock timeout="20" scope="application" {
             	application.aws = {};
-            	application.aws.jars = 'lib/httpcore-4.2.jar,lib/httpclient-4.2.jar,lib/jets3t-0.9.0.jar';
+            	application.aws.jars = 'lib/httpcore-4.2.jar,lib/httpclient-4.2.jar,lib/java-xmlbuilder-0.4.jar,lib/jets3t-0.9.0.jar';
             }
 
             return this;
@@ -243,11 +243,11 @@
 				if(!structKeyExists(arguments,'policy')){
 					arguments.policy = $cloudfrontPolicy(argumentCollection=arguments);
 				}
-				return $getCloudfrontService().signUrl(loc.url,get('aws.accessKeyId'),$getCloudfrontPrivateKey(),arguments.policy);
+				return $getCloudfrontService().signUrl(loc.url,get('aws.cloudfrontKeyPairId'),$getCloudfrontPrivateKey(),arguments.policy);
 			}
 
 			//We are creating a canned signed url
-			return $getCloudFrontService().signUrlCanned(loc.url,get('aws.accessKeyId'),$getCloudfrontPrivateKey(),$cloudfrontFormatDate($calculateLessThanDate(argumentCollection=arguments)));
+			return $getCloudFrontService().signUrlCanned(loc.url,get('aws.cloudfrontKeyPairId'),$getCloudfrontPrivateKey(),$cloudfrontFormatDate($calculateLessThanDate(argumentCollection=arguments)));
 
     	</cfscript>
     </cffunction>
