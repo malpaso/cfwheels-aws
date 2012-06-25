@@ -136,6 +136,42 @@
     	</cfscript>
     </cffunction>
 
+    <cffunction name="$getAWSServiceUtils" returntype="any" output="false">
+    	<cfargument name="reload" type="boolean" default="false"/>
+    	<cfscript>
+    		var loc = {};
+    		loc.obj = false;
+    		if(arguments.reload || !structKeyExists(application.aws,'serviceUtils')){
+    			lock timeout="20" name="awsserviceutilslock" {
+	    			//We need to create the java object
+	    			loc.obj = $createJavaObject('org.jets3t.service.utils.ServiceUtils');
+	    			
+	    			application.aws.serviceUtils = loc.obj;
+    			}
+    		}
+
+    		return application.aws.serviceUtils;
+    	</cfscript>
+    </cffunction>
+
+    <cffunction name="$getAWSEncryptionUtil" returntype="any" output="false">
+    	<cfargument name="reload" type="boolean" default="false"/>
+    	<cfscript>
+    		var loc = {};
+    		loc.obj = false;
+    		if(arguments.reload || !structKeyExists(application.aws,'encryptionutil')){
+    			lock timeout="20" name="awsencryptionutillock" {
+	    			//We need to create the java object
+	    			loc.obj = $createJavaObject('org.jets3t.service.security.EncryptionUtil');
+	    			
+	    			application.aws.encryptionutil = loc.obj;
+    			}
+    		}
+
+    		return application.aws.encryptionutil;
+    	</cfscript>
+    </cffunction>
+
     <cffunction name="$createJavaObject" returntype="any" output="false">
     	<cfargument name="class" type="string" required="true"/>
     	<cfargument name="classpath" type="string" default="#application.aws.jars#"/>
@@ -176,4 +212,151 @@
     <cffunction name="$null" returntype="any" output="false">
     	<cfreturn javaCast("null","")/>
     </cffunction>
+
+    <!--- Cloudfront specific items down here --->
+
+    <!--- I would like to override the urlFor function here, but having two plugins override the same function is currently impossible with wheels. Look in to this later --->
+    <cffunction name="cloudfrontSignedUrl" returntype="string" output="false">
+    	<cfargument name="domain" type="string" required="true"/>
+    	<cfargument name="path" type="string" required="true"/>
+    	<cfargument name="protocol" type="string" required="false"/>
+    	<cfargument name="timeout" type="numeric" required="false"/>
+    	<cfargument name="dateLessThan" type="any" required="false"/>
+    	<cfargument name="dateGreaterThan" type="any" required="false"/>
+    	<cfargument name="ipAddress" type="string" required="false"/>
+    	<cfargument name="policy" type="string" required="false"/>
+    	<cfscript>
+    		var loc = {};
+
+    		//First build the url
+    		if(!structKeyExists(arguments,'protocol') || arguments.protocol != 'https'){
+    			arguments.protocol = 'http';
+    		}
+    		arguments.protocol = lcase(arguments.protocol);
+
+    		loc.url = arguments.protocol & '://' & arguments.domain & '/' & arguments.path;
+
+			
+			//Passing in either of these arguments requires a policy to be created		
+			if(structKeyExists(arguments,'dateGreaterThan') || structKeyExists(arguments,'ipAddress') || structKeyExists(arguments,'policy')){
+				//Create the policy if not passed
+				if(!structKeyExists(arguments,'policy')){
+					arguments.policy = $cloudfrontPolicy(argumentCollection=arguments);
+				}
+				return $getCloudfrontService().signUrl(loc.url,get('aws.accessKeyId'),$getCloudfrontPrivateKey(),arguments.policy);
+			}
+
+			//We are creating a canned signed url
+			return $getCloudFrontService().signUrlCanned(loc.url,get('aws.accessKeyId'),$getCloudfrontPrivateKey(),$cloudfrontFormatDate($calculateLessThanDate(argumentCollection=arguments)));
+
+    	</cfscript>
+    </cffunction>
+
+    <cffunction name="$cloudfrontPolicy" returntype="any" output="false">
+    	<cfargument name="path" type="string" default="#$null()#"/>
+    	<cfargument name="timeout" type="numeric" required="false"/>
+    	<cfargument name="dateLessThan" type="any" required="false"/>
+    	<cfargument name="dateGreaterThan" type="any" default="#$null()#"/>
+    	<cfargument name="ipAddress" type="any" default="#$null()#"/>
+    	<cfscript>
+    		arguments.dateLessThan = $calculateLessThanDate(argumentCollection=arguments);
+
+			arguments.dateLessThan = $cloudfrontFormatDate(arguments.dateLessThan);
+			arguments.dateGreaterThan = $cloudfrontFormatDate(arguments.dateGreaterThan);
+			
+			return $getCloudfrontService().buildPolicyForSignedUrl(
+					arguments.path,
+					arguments.dateLessThan,
+					arguments.ipAddress,
+					arguments.dateGreaterThan
+				);
+
+    	</cfscript>
+    </cffunction>
+
+    <cffunction name="$calculateLessThanDate" returntype="any" output="false">
+    	<cfargument name="dateLessThan" type="any" required="false"/>
+    	<cfargument name="timeout" type="numeric" required="false"/>
+    	<cfscript>
+			if(!structKeyExists(arguments,'dateLessThan')){
+				if(!structKeyExists(arguments,'timeout')){
+					if(structKeyExists(application.wheels,'aws.cloudfrontTimeout')){
+						arguments.timeout = get('aws.cloudfrontTimeout');
+					}
+					else{
+						arguments.timeout = 1800 //30 minute timeout default
+					}
+				}
+				arguments.dateLessThan = dateAdd('s',arguments.timeout,now());
+			}
+			
+			return arguments.dateLessThan;
+    	</cfscript>
+    </cffunction>
+
+    <cffunction name="$cloudfrontFormatDate" returntype="string" output="false">
+    	<cfargument name="date" type="any" required="true"/>
+    	<cfscript>
+    		if(isDate(arguments.date)){
+    			arguments.date = dateConvert('local2Utc',arguments.date);
+    			arguments.date = dateFormat(arguments.date,'yyyy-mm-dd') & 'T' & timeFormat(arguments.date,'HH:mm:ss.l') & 'Z';
+    			arguments.date = $getAWSServiceUtils().parseIso8601Date(arguments.date);
+    		}
+    		return arguments.date;
+    	</cfscript>
+    </cffunction>
+
+    <cffunction name="$getCloudfrontService" returntype="any" output="false">
+    	<cfargument name="reload" type="boolean" default="false"/>
+    	<cfscript>
+    		var loc = {};
+    		loc.obj = false;
+    		if(arguments.reload || !structKeyExists(application.aws,'cloudfrontService')){
+    			lock timeout="20" name="awsrests3lock" {
+	    			//We need to create the java object
+	    			loc.obj = $createJavaObject('org.jets3t.service.CloudFrontService');
+	    			loc.obj.init($getAWSCredentials(arguments.reload));
+	    			
+	    			application.aws.cloudfrontService = loc.obj;
+    			}
+    		}
+
+    		return application.aws.cloudfrontService;
+    	</cfscript>
+    </cffunction>
+
+    <cffunction name="$getCloudfrontPrivateKey" returntype="any" output="false">
+    	<cfargument name="reload" type="boolean" default="false"/>
+    	<cfscript>
+    		var loc = {};
+    		loc.obj = false;
+    		if(arguments.reload || !structKeyExists(application.aws,'cloudfrontprivatekey')){
+    			lock timeout="20" name="awsprivatekeylock" {
+	    			loc.privateKeyLocation = '';
+	    			//First check if it was set in the config
+	    			if(structKeyExists(application.wheels,'aws.cloudfrontkey')){
+	    				loc.privateKeyLocation = get('aws.cloudfrontkey');
+	    			}
+	    			else{
+	    				//Attempt to get it from the jvm arguments (fail silently)
+	    				try{
+	    					loc.privateKeyLocation = createObject("java", "java.lang.System").getProperty('AMAZON.CLOUDFRONT.KEY');
+	    				}
+	    				catch(any e){}
+	    			}
+
+	    			if(!len(loc.privateKeyLocation)){
+	    				$throw(type="Wheels.Private key file unspecified", message="You need to specify the location of the private key file either in JVM arguments or the settings file.");
+	    			}
+
+	    			//Actually create it
+	    			loc.inputStream = createObject('java','java.io.FileInputStream').init(loc.privateKeyLocation);
+	    			application.aws.cloudfrontprivatekey = $getAWSEncryptionUtil().convertRsaPemToDer(loc.inputStream);
+    			}
+    		}
+
+    		return application.aws.cloudfrontprivatekey;
+    	</cfscript>
+    </cffunction>
+
 </cfcomponent>
