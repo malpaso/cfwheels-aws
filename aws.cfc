@@ -53,6 +53,41 @@
     	</cfscript>
     </cffunction>
 
+    <cffunction name="s3DownloadObjects" returntype="any" output="false">
+        <cfargument name="bucket" type="string" required="true"/>
+        <cfargument name="objects" type="any" required="true"/>
+        <cfscript>
+            var loc = {};
+
+            loc.objectsLength = arrayLen(arguments.objects);
+            loc.downloadPackageClass = $createJavaObject('org.jets3t.service.multi.DownloadPackage');
+            loc.array = $createJavaObject('java.lang.reflect.Array');
+            loc.downloadPackages = loc.array.newInstance(loc.downloadPackageClass.getClass(), loc.objectsLength);
+
+            loc.returnValue = [];
+
+            //Make downloadpackage objects for each key in the keys array
+            for(loc.i = 0; loc.i < loc.objectsLength; loc.i++){
+                loc.key = arguments.objects[loc.i + 1];
+                loc.outputStream = createObject('java','java.io.ByteArrayOutputStream').init();
+                arrayAppend(loc.returnValue,{'key' = loc.key, 'data' = loc.outputStream});
+                loc.array.set(loc.downloadPackages,loc.i,$createJavaObject('org.jets3t.service.multi.DownloadPackage').init(
+                        $createJavaObject('org.jets3t.service.model.S3Object').init(loc.key),
+                        loc.outputStream
+                    ));
+            }
+
+            $getThreadedService().downloadObjects(arguments.bucket,loc.downloadPackages);
+
+            //Now go back through and get the text out
+            for(loc.i = 1; loc.i <= loc.objectsLength; loc.i++){
+                loc.returnValue[loc.i]['data'] = loc.returnValue[loc.i]['data'].toString('utf8');
+            }
+
+            return loc.returnValue;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="$getThreadedService" returntype="any" output="false">
     	<cfargument name="reload" type="boolean" default="false"/>
     	<cfscript>
