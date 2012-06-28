@@ -45,6 +45,26 @@
     	</cfscript>
     </cffunction>
 
+    <cffunction name="s3DownloadObject" returntype="any" output="true">
+        <cfargument name="bucket" type="string" required="true"/>
+        <cfargument name="key" type="string" required="true"/>
+        <cfscript>
+            var loc = {};
+            loc.obj = $getRestS3Service().getObject(arguments.bucket,arguments.key);
+
+            loc.inputReader = createObject('java','java.io.InputStreamReader').init(loc.obj.getDataInputStream());
+            loc.scanner = createObject('java','java.util.Scanner').init(loc.inputReader);
+            
+            loc.returnValue = '';
+            try{
+                loc.returnValue = loc.scanner.useDelimiter("\\A").next();
+            }
+            catch(any e){}
+           
+            return loc.returnValue;
+        </cfscript>
+    </cffunction>
+
     <cffunction name="s3GetObjectHeads" returntype="any" output="false">
     	<cfargument name="bucket" type="string" required="true"/>
     	<cfargument name="objects" type="any" required="true"/>
