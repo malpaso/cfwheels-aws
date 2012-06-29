@@ -272,8 +272,8 @@
 
     <!--- I would like to override the urlFor function here, but having two plugins override the same function is currently impossible with wheels. Look in to this later --->
     <cffunction name="cloudfrontSignedUrl" returntype="string" output="false">
-    	<cfargument name="domain" type="string" required="true"/>
-    	<cfargument name="path" type="string" required="true"/>
+    	<cfargument name="domain" type="string" required="false"/>
+    	<cfargument name="path" type="string" required="false"/>
     	<cfargument name="protocol" type="string" required="false"/>
         <cfargument name="url" type="string" required="false"/>
     	<cfargument name="timeout" type="numeric" required="false"/>
