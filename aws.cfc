@@ -275,6 +275,7 @@
     	<cfargument name="domain" type="string" required="true"/>
     	<cfargument name="path" type="string" required="true"/>
     	<cfargument name="protocol" type="string" required="false"/>
+        <cfargument name="url" type="string" required="false"/>
     	<cfargument name="timeout" type="numeric" required="false"/>
     	<cfargument name="dateLessThan" type="any" required="false"/>
     	<cfargument name="dateGreaterThan" type="any" required="false"/>
@@ -283,15 +284,19 @@
     	<cfscript>
     		var loc = {};
 
-    		//First build the url
-    		if(!structKeyExists(arguments,'protocol') || arguments.protocol != 'https'){
-    			arguments.protocol = 'http';
-    		}
-    		arguments.protocol = lcase(arguments.protocol);
+            if(structKeyExists(arguments,'url')){
+                loc.url = arguments.url;
+            }
+            else{
+                //build the url
+                if(!structKeyExists(arguments,'protocol') || arguments.protocol != 'https'){
+                    arguments.protocol = 'http';
+                }
+                arguments.protocol = lcase(arguments.protocol);
 
-    		loc.url = arguments.protocol & '://' & arguments.domain & '/' & arguments.path;
-
-			
+                loc.url = arguments.protocol & '://' & arguments.domain & '/' & arguments.path;
+            }
+    		
 			//Passing in either of these arguments requires a policy to be created		
 			if(structKeyExists(arguments,'dateGreaterThan') || structKeyExists(arguments,'ipAddress') || structKeyExists(arguments,'policy')){
 				//Create the policy if not passed
