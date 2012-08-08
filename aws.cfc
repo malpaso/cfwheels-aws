@@ -108,6 +108,25 @@
         </cfscript>
     </cffunction>
 
+    <cffunction name="s3SignedUrl" returntype="string" output="false">
+        <cfargument name="bucket" type="string" required="false"/>
+        <cfargument name="key" type="string" required="false"/>
+        <cfargument name="timeout" type="numeric" default="30"/>
+        <cfargument name="dateExpiration" type="any" required="false"/>
+        <cfscript>
+            var loc = {};
+
+            if(structKeyExists(arguments,'dateExpiration')){
+                loc.expiryDate = arguments.dateExpiration;
+            }
+            else{
+                loc.expiryDate = $calculateLessThanDate(argumentCollection=arguments)
+            }
+
+           return $getRestS3Service().createSignedGetUrl(arguments.bucket,arguments.key,$cloudfrontFormatDate(loc.expiryDate));
+        </cfscript>
+    </cffunction>
+
     <cffunction name="$getThreadedService" returntype="any" output="false">
     	<cfargument name="reload" type="boolean" default="false"/>
     	<cfscript>
