@@ -438,4 +438,141 @@
     	</cfscript>
     </cffunction>
 
+    <cffunction name="uploadFileToS3" returntype="any" access="public" output="false">
+        <cfargument name="bucket" type="string" required="true" />
+        <cfargument name="path" type="string" required="true" />
+        <cfargument name="acl" type="string" required="false" />
+
+        <cfscript>
+            loc.restService = $getRestS3Service();
+            loc.file = $createJavaObject('java.io.File').init(arguments.path);
+            loc.s3Object = $createJavaObject('org.jets3t.service.model.S3Object').init(loc.file);
+
+            if (structKeyExists(arguments, "acl")) {
+                loc.acl = $createJavaObject('org.jets3t.service.acl.AccessControlList');
+                loc.s3Object.setAcl(loc.acl[arguments.acl]);
+            }
+
+            
+            loc.restService.putObject(arguments.bucket, loc.s3Object)
+
+            return;
+        </cfscript>
+        
+    </cffunction>
+
+    <!---
+        Description:
+            uploads a file on disk to a s3 bucket.
+        Arguments:
+            -> bucket: the bucket where the file is located.
+            -> path: the path to the folder that contains the file. path should not include the file itself.
+            -> file: the name of the actual file, ex: test.zip. used by default for the key of the s3Object.
+            -> [optional] key: allows for manual specification of the s3Object key rather than using the default file argument.
+            -> [optional] acl: specifies an AccessControlList object to set on an s3 object prior to upload. possible values:REST_CANNED_AUTHENTICATED_READ,REST_CANNED_PRIVATE  ,REST_CANNED_PUBLIC_READ,REST_CANNED_PUBLIC_READ_WRITE.
+            -> [optional] canonicalGrantee: comma seperated list of canonical grantees to set on the acl.
+            -> [optional] canonicalGranteePermissions: comma seperated list of permissions to set on canonical grantees. defaults to read only permissions. possible values: PERMISSION_FULL_CONTROL, PERMISSION_READ, PERMISSION_WRITE, PERMISSION_READ_ACP, PERMISSION_WRITE_ACP
+     --->
+    <cffunction name="$uploadFileToS3" returntype="any" access="public" output="false">
+        <cfargument name="bucket" type="string" required="true" />
+        <cfargument name="path" type="string" required="true" />
+        <cfargument name="file" type="string" required="true" />
+        <cfargument name="key" type="string" required="false" />
+        <cfargument name="acl" type="string" required="false" />
+        <cfargument name="canonicalGrantees" type="string" required="false" />
+        <cfargument name="canonicalGranteePermissions" type="string" default="PERMISSION_READ" />
+
+        <cfscript>
+            // get the rest service object and load up a new s3Object using the passed path
+
+            loc.restService = $getRestS3Service();
+            loc.pathToFile = arguments.path & "/" & arguments.file;
+            loc.file = $createJavaObject('java.io.File').init(loc.pathToFile);
+            loc.s3Object = $createJavaObject('org.jets3t.service.model.S3Object').init(loc.file);
+
+            // set the key of the s3Object
+
+            loc.key = (structKeyExists(arguments, "key")) ? arguments.key : arguments.file;
+            loc.s3Object.setKey(loc.key);
+
+            if (structKeyExists(arguments, "acl")) {
+                // set the object's acl based on the passed acl type
+
+                loc.acl = $createJavaObject('org.jets3t.service.acl.AccessControlList')[arguments.acl];
+                loc.s3Object.setAcl(loc.acl);
+            }
+
+            // upload the s3Object to the specified bucket
+
+            loc.restService.putObject(arguments.bucket, loc.s3Object);
+            
+            if (structKeyExists(arguments, "acl")) {
+                // set additional grantees and permissions
+
+                loc.acl = {};
+                loc.acl = loc.restService.getObjectAcl(arguments.bucket, loc.key);
+
+                
+                if (structKeyExists(arguments, "canonicalGrantees")) {
+                    loc.canonicalGrantees = listToArray(arguments.canonicalGrantees);
+                    loc.canonicalGranteePermissions = listToArray(arguments.canonicalGranteePermissions);
+                    loc.permission = $createS3AclPermission();
+
+                    for (loc.i = 1; loc.i <= arrayLen(loc.canonicalGrantees); loc.i++) {
+                        // loop over canonicalGrantees
+
+                        loc.canonicalGrantee = $createS3CanonicalGrantee(loc.canonicalGrantees[loc.i]);
+
+                        for (loc.j = 1; loc.j <= arrayLen(loc.canonicalGranteePermissions); loc.j++)    {
+                            // loop over canonicalGranteePermissions and set the canonical grantee + each passed permission on the acl
+
+                            loc.acl.grantPermission(loc.canonicalGrantee, loc.permission[loc.canonicalGranteePermissions[loc.j]]);
+                        }
+                    }
+                }
+
+                loc.restService.putObjectAcl(arguments.bucket, loc.key, loc.acl);
+            }
+
+            return;
+        </cfscript>
+        
+    </cffunction>
+    
+    <!--- 
+        Description:
+            creates a CanonicalGrantee object
+        Arguments:
+            -> id: the id to be set on the CanonicalGrantee object
+            -> [optional] displayName: the display name of the CanonicalGrantee object
+     --->
+    <cffunction name="$createS3CanonicalGrantee" returntype="any" access="public" output="false">
+        <cfargument name="id" type="string" required="true" />
+        <cfargument name="displayName" type="string" required="false" />
+
+        <cfscript>
+            var loc = {};
+            loc.canonicalGrantee = $createJavaObject('org.jets3t.service.acl.CanonicalGrantee').init(arguments.id);
+
+            if (structKeyExists(arguments, "displayName")) {
+                loc.canonicalGrantee.setDisplayName(arguments.displayName);
+            }
+
+            return loc.canonicalGrantee;
+        </cfscript>
+        
+    </cffunction>
+
+    <!--- 
+        Description:
+            creates a Permission object
+     --->
+    <cffunction name="$createS3AclPermission" returntype="any" access="public" output="false">
+
+        <cfscript>
+            return $createJavaObject('org.jets3t.service.acl.Permission');
+        </cfscript>
+        
+    </cffunction>
+
 </cfcomponent>
