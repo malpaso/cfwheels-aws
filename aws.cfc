@@ -511,7 +511,6 @@
 
                 loc.acl = {};
                 loc.acl = loc.restService.getObjectAcl(arguments.bucket, loc.key);
-
                 
                 if (structKeyExists(arguments, "canonicalGrantees")) {
                     loc.canonicalGrantees = listToArray(arguments.canonicalGrantees);
@@ -531,7 +530,26 @@
                     }
                 }
 
-                loc.restService.putObjectAcl(arguments.bucket, loc.key, loc.acl);
+                for (loc.i = 1; loc.i <= 3; loc.i++) {
+                    // attempt to set the acl 3 times before throwing
+
+                    loc.aclSet = true;
+                    
+                    try {
+                        loc.restService.putObjectAcl(arguments.bucket, loc.key, loc.acl);
+                    }
+                    catch (any e) {
+                        loc.aclSet = false;
+                    }
+
+                    if (loc.aclSet) {
+                        break;
+                    }
+                }
+
+                if (!loc.aclSet) {
+                    throw("Failed to set ACL. [toString]:" & loc.acl.toString() & " [toXml]:" & loc.acl.toXml());
+                }                
             }
 
             return;
