@@ -479,6 +479,7 @@
         <cfargument name="file" type="string" required="true" />
         <cfargument name="key" type="string" required="false" />
         <cfargument name="acl" type="string" required="false" />
+        <cfargument name="aclRetries" type="numeric" default="3" />
         <cfargument name="canonicalGrantees" type="string" required="false" />
         <cfargument name="canonicalGranteePermissions" type="string" default="PERMISSION_READ" />
 
@@ -530,7 +531,7 @@
                     }
                 }
 
-                for (loc.i = 1; loc.i <= 3; loc.i++) {
+                for (loc.i = 1; loc.i <= arguments.aclRetries; loc.i++) {
                     // attempt to set the acl 3 times before throwing
 
                     loc.aclSet = true;
@@ -545,6 +546,8 @@
                     if (loc.aclSet) {
                         break;
                     }
+
+                    sleep(1000);
                 }
 
                 if (!loc.aclSet) {
