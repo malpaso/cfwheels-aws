@@ -50,16 +50,28 @@
         <cfargument name="key" type="string" required="true"/>
         <cfscript>
             var loc = {};
-            loc.obj = $getRestS3Service().getObject(arguments.bucket,arguments.key);
-
-            loc.inputReader = createObject('java','java.io.InputStreamReader').init(loc.obj.getDataInputStream());
-            loc.scanner = createObject('java','java.util.Scanner').init(loc.inputReader);
-            
             loc.returnValue = '';
-            try{
-                loc.returnValue = loc.scanner.useDelimiter("\\A").next();
-            }
-            catch(any e){}
+            loc.failCount = 0;
+            loc.continueTrying = true;
+
+            do {
+                // attempt to resolve sporadic errors.. try three times before abandoning
+                try {
+                    loc.obj = $getRestS3Service().getObject(arguments.bucket,arguments.key);    
+
+                    loc.inputReader = createObject('java','java.io.InputStreamReader').init(loc.obj.getDataInputStream());
+                    loc.scanner = createObject('java','java.util.Scanner').init(loc.inputReader);
+                    
+                    try{
+                        loc.returnValue = loc.scanner.useDelimiter("\\A").next();
+                    }
+                    catch(any e){}
+
+                    loc.continueTrying = false; // successful, don't continue
+                } catch (any e) {
+                    loc.failCount++;
+                }
+            } while (loc.continueTrying || loc.failCount < 3);
            
             return loc.returnValue;
         </cfscript>
