@@ -52,7 +52,6 @@
             var loc = {};
             loc.returnValue = '';
             loc.failCount = 0;
-            loc.continueTrying = true;
 
             do {
                 // attempt to resolve sporadic errors.. try three times before abandoning
@@ -66,12 +65,14 @@
                         loc.returnValue = loc.scanner.useDelimiter("\\A").next();
                     }
                     catch(any e){}
-
-                    loc.continueTrying = false; // successful, don't continue
                 } catch (any e) {
                     loc.failCount++;
+                    if (loc.failCount > 2 || e.errorCode == "NoSuchKey") {
+                        loc.message = e.type & " - " & e.message & " - " & e.errorCode & " - " & arguments.bucket & "/" & arguments.key;
+                        throw(message=loc.message, type=e.type, errorcode=e.errorcode, detail=e.detail, extendedInfo=e.extendedInfo)
+                    }
                 }
-            } while (loc.continueTrying || loc.failCount < 3);
+            } while (loc.failCount > 0 && loc.failCount < 3);
            
             return loc.returnValue;
         </cfscript>
@@ -90,31 +91,41 @@
         <cfargument name="objects" type="any" required="true"/>
         <cfscript>
             var loc = {};
-
-            loc.objectsLength = arrayLen(arguments.objects);
-            loc.downloadPackageClass = $createJavaObject('org.jets3t.service.multi.DownloadPackage');
-            loc.array = $createJavaObject('java.lang.reflect.Array');
-            loc.downloadPackages = loc.array.newInstance(loc.downloadPackageClass.getClass(), loc.objectsLength);
-
             loc.returnValue = [];
+            loc.failCount = 0;
 
-            //Make downloadpackage objects for each key in the keys array
-            for(loc.i = 0; loc.i < loc.objectsLength; loc.i++){
-                loc.key = arguments.objects[loc.i + 1];
-                loc.outputStream = createObject('java','java.io.ByteArrayOutputStream').init();
-                arrayAppend(loc.returnValue,{'key' = loc.key, 'data' = loc.outputStream});
-                loc.array.set(loc.downloadPackages,loc.i,$createJavaObject('org.jets3t.service.multi.DownloadPackage').init(
-                        $createJavaObject('org.jets3t.service.model.S3Object').init(loc.key),
-                        loc.outputStream
-                    ));
-            }
+            do {
+                try {
+                    loc.objectsLength = arrayLen(arguments.objects);
+                    loc.downloadPackageClass = $createJavaObject('org.jets3t.service.multi.DownloadPackage');
+                    loc.array = $createJavaObject('java.lang.reflect.Array');
+                    loc.downloadPackages = loc.array.newInstance(loc.downloadPackageClass.getClass(), loc.objectsLength);
 
-            $getThreadedService().downloadObjects(arguments.bucket,loc.downloadPackages);
+                    //Make downloadpackage objects for each key in the keys array
+                    for(loc.i = 0; loc.i < loc.objectsLength; loc.i++){
+                        loc.key = arguments.objects[loc.i + 1];
+                        loc.outputStream = createObject('java','java.io.ByteArrayOutputStream').init();
+                        arrayAppend(loc.returnValue,{'key' = loc.key, 'data' = loc.outputStream});
+                        loc.array.set(loc.downloadPackages,loc.i,$createJavaObject('org.jets3t.service.multi.DownloadPackage').init(
+                                $createJavaObject('org.jets3t.service.model.S3Object').init(loc.key),
+                                loc.outputStream
+                            ));
+                    }
 
-            //Now go back through and get the text out
-            for(loc.i = 1; loc.i <= loc.objectsLength; loc.i++){
-                loc.returnValue[loc.i]['data'] = loc.returnValue[loc.i]['data'].toString('utf8');
-            }
+                    $getThreadedService().downloadObjects(arguments.bucket,loc.downloadPackages);
+
+                    //Now go back through and get the text out
+                    for(loc.i = 1; loc.i <= loc.objectsLength; loc.i++){
+                        loc.returnValue[loc.i]['data'] = loc.returnValue[loc.i]['data'].toString('utf8');
+                    }
+                } catch (any e) {
+                    loc.failCount++;
+                    if (loc.failCount > 2) {
+                        loc.message = e.type & " - " & e.message & " - " & e.errorCode & " - " & arguments.bucket & "/" & arguments.key;
+                        throw(message=loc.message, type=e.type, errorcode=e.errorcode, detail=e.detail, extendedInfo=e.extendedInfo)
+                    }
+                }
+            } while (loc.failCount > 0 && loc.failCount < 3);
 
             return loc.returnValue;
         </cfscript>
