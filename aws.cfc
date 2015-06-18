@@ -120,7 +120,7 @@
                     }
                 } catch (any e) {
                     loc.failCount++;
-                    if (loc.failCount > 2) {
+                    if (loc.failCount > 2 || e.errorCode == "NoSuchKey") {
                         loc.message = e.type & " - " & e.message & " - " & e.errorCode & " - " & arguments.bucket & "/" & arguments.key;
                         throw(message=loc.message, type=e.type, errorcode=e.errorcode, detail=e.detail, extendedInfo=e.extendedInfo)
                     }
